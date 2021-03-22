@@ -3,42 +3,48 @@ package com.n26.statistics.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import com.n26.statistics.model.StatisticsResp;
 import com.n26.statistics.model.TransactionReq;
-import com.n26.statistics.model.Transactions;
 
 @Service
 public class ServiceImpl implements ServiceI {
 	
  private static final Logger logger = LoggerFactory.getLogger(ServiceImpl.class);	
-	
- private List<Transactions> transactionList = Collections.synchronizedList(new ArrayList<>());
  
- private List<TransactionReq> totalTXLastSixtySecsList = new ArrayList<>();
+ private static long count = 0;
+ private static BigDecimal min = null;
+ private static BigDecimal max = null;
+ private static ConcurrentHashMap<ZonedDateTime, BigDecimal> totalTxnsLastSixtySecs = new ConcurrentHashMap<>();
+	
 	
 	
 	/**
-	 * This method is used to save data on Transaction List.
+	 * This method is used to save data on totalTxnsLastSixtySecs M.
 	 * @param transactionReq
 	 * @author Sumit.Chaturvedi
 	 * @since 2021-19-03 01:12
 	 */
-	@SuppressWarnings("serial")
 	public boolean save(TransactionReq transactionReq) {
 		logger.info(
-				"Save()-------> on the bases of Current time, it will start saving Transaction to Transaction List.");
-		transactionList.add(new Transactions() {{
-				setZonedDateTime(ZonedDateTime.now());
-				setTransactionReq(transactionReq);
-			}});
-		logger.info("Save()-------> Transaction Save Successfully, To the Transaction List.");
+				"Save()-------> on the bases of Transaction request timestamp, it will start saving Transactions to the ConcurrentHashMap.");
+		synchronized (ServiceImpl.class) {
+			if (min == null) min = transactionReq.getAmount();
+			if (max == null) max = transactionReq.getAmount();
+			min = min.min(transactionReq.getAmount());
+			max = max.max(transactionReq.getAmount());
+		}
+
+		if (totalTxnsLastSixtySecs.containsKey(transactionReq.getTimestamp()))
+			totalTxnsLastSixtySecs.put(transactionReq.getTimestamp(),
+					totalTxnsLastSixtySecs.get(transactionReq.getTimestamp()).add(transactionReq.getAmount()));
+		else
+			totalTxnsLastSixtySecs.put(transactionReq.getTimestamp(), transactionReq.getAmount());
+		count++;
+		logger.info("Save()-------> Transaction Save Successfully, To the totalTxnsLastSixtySecs Map.");
 		return true;
 	}
 	
@@ -55,27 +61,15 @@ public class ServiceImpl implements ServiceI {
 	@SuppressWarnings("serial")
 	public StatisticsResp get() {
 		logger.info("get()------->  Method Invoked");
-		ZonedDateTime currentDateTime = ZonedDateTime.now();
-		logger.info("get()------->  CurrentDateTime +" + currentDateTime);
-		ZonedDateTime currentDateTimeMinusSixtySecond = currentDateTime.minusSeconds(60);
-		logger.info("get()------->  CurrentDateTime Minus Sixty Seconds +" + currentDateTimeMinusSixtySecond);
-
-		for (int i = transactionList.size() - 1; i >= 0; i--) {
-			if (currentDateTimeMinusSixtySecond.compareTo(transactionList.get(i).getZonedDateTime())
-					* transactionList.get(i).getZonedDateTime().compareTo(currentDateTime) >= 0) {
-				totalTXLastSixtySecsList.add(transactionList.get(i).getTransactionReq());
-			}
-		}
-			
 		logger.info(
-				"get()------->  totalTXLastSixtySecsList -------> LIST CONTAINS TOTAL TRANSACTION COMPUTED ON THE LAST SIXTY SECONDS");
-		if(totalTXLastSixtySecsList.isEmpty()) return null;
+				"get()------->  totalTxnsLastSixtySecs -------> MAP CONTAINS TOTAL TRANSACTION COMPUTED ON THE LAST SIXTY SECONDS");
+		if(totalTxnsLastSixtySecs.isEmpty()) return null;
 		return new StatisticsResp() {{
 				setSum(getSumOfAmt());
-				setAvg(getAvgOfAmt(totalTXLastSixtySecsList.size()));
-				setCount((long) totalTXLastSixtySecsList.size());
-				setMax(getMaxAmt());
-				setMin(getMinAmt());
+				setAvg(getAvgOfAmt());
+				setCount(count);
+				setMax(max.setScale(2, RoundingMode.HALF_UP));
+				setMin(min.setScale(2, RoundingMode.HALF_UP));
 			}};
 	}
 	
@@ -87,12 +81,7 @@ public class ServiceImpl implements ServiceI {
 	 */
 	private BigDecimal getSumOfAmt() {
 		logger.info("getSumOfAmt() -------> Method Invoked");
-		BigDecimal sum = new BigDecimal(0.0);
-		for (TransactionReq transactionReq : totalTXLastSixtySecsList)
-			if (transactionReq != null)
-				sum = sum.add(transactionReq.getAmount());
-		return sum.setScale(2, RoundingMode.HALF_UP);
-	   //return sum.setScale(2, BigDecimal.ROUND_HALF_UP);
+		return  totalTxnsLastSixtySecs.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add).setScale(2, RoundingMode.HALF_UP);
 	}
 
 	/**
@@ -101,50 +90,31 @@ public class ServiceImpl implements ServiceI {
 	 * @author Sumit.Chatuvedi
 	 * @since 2021-19-03 03:12
 	 */
-	private BigDecimal getAvgOfAmt(int count) {
+	private BigDecimal getAvgOfAmt() {
 		logger.info("getAvgOfAmt() -------> Method Invoked");
 		try {
+			System.out.println(getSumOfAmt());
+			System.out.print(count);
 			return getSumOfAmt().divide(new BigDecimal(count)).setScale(2, RoundingMode.HALF_UP);
 		} catch (ArithmeticException e) {
 			return new BigDecimal(0);
 		}
 
 	}
-	
-	
-	/**
-	 * This method is used to return Maximum amount of LastMinuteStatistics List.
-	 * @return BigDecimal
-	 * @author Sumit.Chatuvedi
-	 * @since 2021-19-03 03:17
-	 */
-	private BigDecimal getMaxAmt() {
-		logger.info("getMaxAmt() -------> Method Invoked");
-		return totalTXLastSixtySecsList.stream().max(Comparator.comparing(Request -> Request.getAmount())).get().getAmount().setScale(2, RoundingMode.HALF_UP);
-	}
-	
-	
-	/**
-	 * This method is used to return minimum amount of LastMinuteStatistics List.
-	 * @return BigDecimal
-	 * @author Sumit.Chatuvedi
-	 * @since 2021-19-03 01:12
-	 */
-	private BigDecimal getMinAmt() {
-		logger.info("getMinAmt() -------> Method Invoked");
-		return totalTXLastSixtySecsList.stream().min(Comparator.comparing(Request -> Request.getAmount())).get().getAmount().setScale(2, RoundingMode.HALF_UP);
-	}
 
 	/**
-	 * This method is used to Removes all of the elements from the Transaction List.
+	 * This method is used to Removes all of the elements from the Transaction Map.
 	 * @return boolean
 	 * @author Sumit.Chatuvedi
 	 * @since 2021-20-03 11:12
 	 */
 	public boolean delete() {
-		logger.info("delete()------->  Removes all of the elements from the Transaction List.");
-		transactionList.clear();
-		totalTXLastSixtySecsList.clear();
+		logger.info("delete()------->  Removes all of the elements from the Transaction Map.");
+		count = 0;
+		max = null;
+		min = null;
+		if(totalTxnsLastSixtySecs.isEmpty()) return false;
+		totalTxnsLastSixtySecs.clear();
 		return true;
 	}
 
