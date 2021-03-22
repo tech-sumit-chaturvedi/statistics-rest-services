@@ -36,6 +36,7 @@ public class ServiceImpl implements ServiceI {
 			if (max == null) max = transactionReq.getAmount();
 			min = min.min(transactionReq.getAmount());
 			max = max.max(transactionReq.getAmount());
+			count++;
 		}
 
 		if (totalTxnsLastSixtySecs.containsKey(transactionReq.getTimestamp()))
@@ -43,7 +44,6 @@ public class ServiceImpl implements ServiceI {
 					totalTxnsLastSixtySecs.get(transactionReq.getTimestamp()).add(transactionReq.getAmount()));
 		else
 			totalTxnsLastSixtySecs.put(transactionReq.getTimestamp(), transactionReq.getAmount());
-		count++;
 		logger.info("Save()-------> Transaction Save Successfully, To the totalTxnsLastSixtySecs Map.");
 		return true;
 	}
