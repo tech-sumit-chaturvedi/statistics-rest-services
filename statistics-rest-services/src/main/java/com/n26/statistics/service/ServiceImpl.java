@@ -23,7 +23,7 @@ public class ServiceImpl implements ServiceI {
 	
 	
 	/**
-	 * This method is used to save data on totalTxnsLastSixtySecs M.
+	 * This method is used to save data on totalTxnsLastSixtySecs ConcurrentHashMap.
 	 * @param transactionReq
 	 * @author Sumit.Chaturvedi
 	 * @since 2021-19-03 01:12
@@ -52,8 +52,7 @@ public class ServiceImpl implements ServiceI {
 	
 	
 	/**
-	 * Fetches total Transaction computed on the last the last 60 Second.
-	 * 
+	 * Fetches total Transaction computed on the last the last 60 Second. 
 	 * @return StatisticsResp
 	 * @author Sumit.Chatuvedi
 	 * @since 2021-19-03 01:19

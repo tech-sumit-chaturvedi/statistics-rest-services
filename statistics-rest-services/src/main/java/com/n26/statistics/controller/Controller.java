@@ -38,7 +38,7 @@ private ServiceImpl serviceImpl;
 /**
   @api {post} /api/transactions
   @apiGroup Email Provider
-  @apiDescription Service to save the Transaction details, it will affect only transactionList.
+  @apiDescription Service to save the Transaction details, it will affect only totalTxnsLastSixtySecs Map.
   @apiParamExample {json} Request-Payload:
 	{
     "amount": "12.3343",
@@ -94,7 +94,7 @@ public ResponseEntity save(@RequestBody TransactionReq transactionReq) throws Ex
 	}
 	logger.info("save()-------> transactionReq timestamp are not older than Sixty seconds or not in Future.");
 	boolean success = serviceImpl.save(transactionReq);
-	logger.info("save()-------> Transaction details Successfully Saved, and it will affect only transactionList.");
+	logger.info("save()-------> Transaction details Successfully Saved, and it will affect only totalTxnsLastSixtySecs Map.");
 	logger.info("save()-------> save Method end");
 	return new ResponseEntity(new HashMap<String, Object>() {
 		{
@@ -109,7 +109,7 @@ public ResponseEntity save(@RequestBody TransactionReq transactionReq) throws Ex
 /**
   @api {get} /api/statistics
   @apiVersion 1.0
-  @apiDescription This endpoint returns the statistics computed on the transactions within the last 60.
+  @apiDescription This endpoint returns the statistics computed on the transactions within the last 60seconds.
   @apiSuccessExample {json} Success-Response: 
   {
   "sum": 46310.0058,
@@ -122,7 +122,7 @@ public ResponseEntity save(@RequestBody TransactionReq transactionReq) throws Ex
   @since 2021-18-03 23:24
   @see StatisticsService 
   */	
-@ApiOperation(value = "Get Statistics last 60 minutes")
+@ApiOperation(value = "Get Statistics last 60 seconds")
 @SuppressWarnings({ "rawtypes", "unchecked", "serial" })
 @GetMapping(value = "/statistics")
 public ResponseEntity get() {
@@ -140,7 +140,7 @@ public ResponseEntity get() {
   @api {delete} /transactions
   @apiVersion 1.0
   @apiGroup Transactions
-  @apiDescription Service to delete the Transaction List permanently
+  @apiDescription Service to delete the Transactions permanently
   @apiSuccessExample {json} Success-Response: 
   	HTTP/1.1 200 OK
 	{
